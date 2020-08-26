@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script>
+      async function myFunction(url) {
+      	var myHeaders = new Headers();
+        myHeaders.append("Content-Type", "application/json");
+        
+        var raw = JSON.stringify({"url":url});
+        
+        var requestOptions = {
+                method: 'POST',
+                headers: myHeaders,
+                body: raw,
+                redirect: 'follow'
+        };
+        
+        let response = await fetch("https://9iu50o8yo0.execute-api.us-west-2.amazonaws.com/dev", requestOptions)
+
+        let commits = await response.json();
+
+        document.getElementById("demo").innerHTML = location.hostname + "/url/" + commits['body']
+      }
+    </script>
+</head>
+<body>
+    <form>
+        <label>Url:</label>
+        <input type="text" id="rawurl">
+        <!-- set button onClick method to call function we defined passing input values as parameters -->
+        <button type="button" onclick="myFunction(document.getElementById('rawurl').value)">Shorten</button>
+        <p id="demo"></p>
+    </form>
+</body>
+</html>
