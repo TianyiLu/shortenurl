@@ -7,11 +7,12 @@ dynamodb = boto3.resource('dynamodb')
 index_table = dynamodb.Table('Indexing')
 
 def lambda_handler(event, context):
-    response = index_table.get_item(Key={'URL': event['shortenurl']})
+
+    response = index_table.get_item(Key={'URL': event['shortenurl']}, ConsistentRead=True)
     if response.get('Item') == None:
         return {
         'statusCode': 404,
-        'statusDescription': 'Not Found',
+        'statusDescription': 'Raw URL Not Found. Please try to contact system administrator shorten the raw url again. If the problem still existing, please contact AWS support center.',
         }
     else:
         return {
