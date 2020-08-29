@@ -5,9 +5,7 @@ import boto3
 import hashlib
 from botocore.exceptions import ClientError
 
-# create a DynamoDB object using the AWS SDK
 dynamodb = boto3.resource('dynamodb')
-# use the DynamoDB object to select our table
 table = dynamodb.Table('ShortenURLDatabase')
 counter_table = dynamodb.Table('AtomicCounter')
 index_table = dynamodb.Table('Indexing')
@@ -28,18 +26,16 @@ def changeToTenBase(s,b):
         result = result + baseList.index(sL[x])*(b**x)
     return result
 
+def put_to_indexing(shorten_url, raw_url):
+    index_table.put_item(
+        Item={
+            'URL': shorten_url,
+            'raw': raw_url
+            })
+    return
 
-# define the handler function that the Lambda service will use as an entry point
-def lambda_handler(event, context):
-
-    rawurlstr = event['url']
-    md5result = hashlib.md5(rawurlstr.encode()).hexdigest()
-    id = changeToTenBase(md5result,10)
-    
-    response = table.get_item(Key={'ID': str(id)})
-    if response.get('Item') == None:
-        # if not found, atomic counter add 1
-        response_c = counter_table.update_item(
+def atomic_incr():
+    response = counter_table.update_item(
             Key={
                 'Name': "Counter"
             },
@@ -49,34 +45,49 @@ def lambda_handler(event, context):
             },
             ReturnValues="UPDATED_NEW"
         )
-        shorten_url = changeBase(int(response_c['Attributes']['CurrentValue']),62)
-        while (len(shorten_url) < 7):
-            shorten_url = '0'+ shorten_url
-        # Write to the shorten_url table
-        response_s = table.put_item(
+    return int(response['Attributes']['CurrentValue'])
+    
+def put_to_shorten_table(id, raw_url, shorten_url):
+    # Write to the shorten_url table
+    response_s = table.put_item(
         Item={
             'ID': str(id),
-            'raw': rawurlstr,
+            'raw': raw_url,
             'shortenurl':shorten_url
             })
-        response_i = index_table.put_item(
-        Item={
-            'URL': shorten_url,
-            'raw': rawurlstr
-            })
+    return
+
+def shorten(num):
+    url = changeBase(int(num),62)
+    while (len(url) < 7):
+        url = '0'+ url
+    return url
+
+def get_md5_id(url):
+    md5result = hashlib.md5(url.encode()).hexdigest()
+    id = changeToTenBase(md5result,10)
+    return id
+    
+# define the handler function that the Lambda service will use as an entry point
+def lambda_handler(event, context):
+    rawurlstr = event['url']
+    id = get_md5_id(rawurlstr)
+    response = table.get_item(Key={'ID': str(id)})
+    
+    if response.get('Item') == None:
+        counter = atomic_incr()
+        shorten_url = shorten(counter)
+        put_to_shorten_table(id, rawurlstr, shorten_url)
+        put_to_indexing(shorten_url, rawurlstr)
         return {
             'statusCode': 200,
             'body': json.dumps(shorten_url.strip('\"')).strip('\"')
         }
     else:
-        response_i = index_table.put_item(
-        Item={
-            'URL': response['Item']['shortenurl'],
-            'raw': rawurlstr
-            })
+        put_to_indexing(shorten_url, rawurlstr)
         return {
-        'statusCode': 200,
-        'body': json.dumps(response['Item']['shortenurl']).strip('\"')
+            'statusCode': 200,
+            'body': json.dumps(response['Item']['shortenurl']).strip('\"')
     }
     
     
