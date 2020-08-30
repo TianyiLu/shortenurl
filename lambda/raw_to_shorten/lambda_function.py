@@ -5,10 +5,8 @@ import boto3
 import hashlib
 from botocore.exceptions import ClientError
 
-dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table('ShortenURLDatabase')
-counter_table = dynamodb.Table('AtomicCounter')
-index_table = dynamodb.Table('Indexing')
+dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
+index_table = 'Indexing'
 baseList = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 
 def changeBase(n,b):
@@ -26,13 +24,19 @@ def changeToTenBase(s,b):
         result = result + baseList.index(sL[x])*(b**x)
     return result
 
-def put_to_indexing(shorten_url, raw_url):
-    index_table.put_item(
+def put_to_table(table_name, shorten_url, raw_url):
+    table = dynamodb.Table(table_name)
+    table.put_item(
         Item={
             'URL': shorten_url,
             'raw': raw_url
             })
     return
+
+def get_table_item(table_name, index):
+    table = dynamodb.Table(table_name)
+    item = table.get_item(Key={'URL': index}, ConsistentRead=True)
+    return item
 
 def get_md5_id(url):
     md5result = hashlib.md5(url.encode()).hexdigest()
@@ -45,8 +49,15 @@ def get_md5_id(url):
 def lambda_handler(event, context):
     rawurlstr = event['url']
     id = get_md5_id(rawurlstr)
-    put_to_indexing(id, rawurlstr)
-    return {
+    response = get_table_item(index_table, id)
+    if response.get('Item') == None:
+        put_to_table(index_table, id, rawurlstr)
+        return {
             'statusCode': 200,
             'body': json.dumps(id).strip('\"')
+        }
+    else:
+        return {
+        'statusCode': 301,
+        'location': json.dumps(response['Item']['raw']).strip('\"')
         }
