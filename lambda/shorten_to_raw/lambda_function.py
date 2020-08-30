@@ -8,7 +8,7 @@ index_table = dynamodb.Table('Indexing')
 
 def lambda_handler(event, context):
 
-    response = index_table.get_item(Key={'URL': event['shortenurl']}, ConsistentRead=True)
+    response = index_table.get_item(Key={'URL': event['shortenurl']})
     if response.get('Item') == None:
         return {
         'statusCode': 404,
